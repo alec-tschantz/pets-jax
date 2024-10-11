@@ -27,8 +27,9 @@ class AtariEnv:
         self.env = gym.make(env_name, render_mode=render_mode)
 
         self.action_space = Space((3,))
-        self.observation_space = Space((4,))
+        self.observation_space = Space((4 * 2,))
         self._idx_to_action = {0: 0, 1: 2, 2: 3}
+        self._prev_state = np.zeros(4)
 
     def step(self, action: int):
         action = self._idx_to_action[action.item()]
@@ -48,4 +49,7 @@ class AtariEnv:
     def _state(self) -> np.ndarray:
         ram = self.env.unwrapped.ale.getRAM()
         state = [ram[v] for v in ram_dict.values()]
-        return np.array(state, dtype=np.float32)
+        state = np.array(state, dtype=np.float32)
+        delta_state = state - self._prev_state
+        self._prev_state = state
+        return np.concatenate([state, delta_state])
