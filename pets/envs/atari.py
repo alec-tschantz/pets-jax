@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 import random
 import numpy as np
+from jax import numpy as jnp
 import gymnasium as gym
 
 
@@ -12,6 +13,12 @@ ram_dict = {
     "ball_x": 49,
     "ball_y": 54,
 }
+
+
+def reward_fn(next_obs: jnp.array) -> jnp.array:
+    ball_x, ball_y = next_obs[..., 2], next_obs[..., 3]
+    mask = (ball_x == 20.5) & (ball_y == 0.0)
+    return jnp.where(mask, -1, 0)
 
 
 @dataclass

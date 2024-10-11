@@ -1,4 +1,5 @@
-from typing import Tuple
+import pickle
+from typing import Tuple, Self
 from dataclasses import dataclass
 
 import numpy as np
@@ -65,3 +66,12 @@ class Normalizer:
 
     def denormalize(self, val: Array) -> Array:
         return self.std * val + self.mean
+
+    def save(self, filename: str):
+        with open(filename, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, filename: str) -> Self:
+        with open(filename, "rb") as f:
+            return pickle.load(f)
