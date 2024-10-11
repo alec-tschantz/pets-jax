@@ -1,0 +1,4 @@
+jax==0.4.33
+optax==0.2.3
+equinox==0.11.7
+gymnasium[atari, accept-rom-license, classic-control]==0.29.1
