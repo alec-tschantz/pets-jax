@@ -43,6 +43,15 @@ class Dataset:
         std = jnp.where(std < 1e-12, 1.0, std)
         return mean, std
 
+    def save(self, filename: str):
+        with open(filename, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, filename: str) -> Self:
+        with open(filename, "rb") as f:
+            return pickle.load(f)
+
     def __setitem__(self, idx, value):
         state, action, reward, next_state = value
         self.states[idx] = state
@@ -60,12 +69,3 @@ class Dataset:
 
     def __len__(self):
         return min(self._steps, self.buffer_size)
-
-    def save(self, filename: str):
-        with open(filename, "wb") as f:
-            pickle.dump(self, f)
-
-    @classmethod
-    def load(cls, filename: str) -> Self:
-        with open(filename, "rb") as f:
-            return pickle.load(f)
