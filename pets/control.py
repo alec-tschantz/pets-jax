@@ -8,10 +8,10 @@ def plan(
     rollout_fn: Callable,
     action_dim: int,
     key: jr.PRNGKey,
-    num_steps: int = 20,
-    num_samples: int = 200,
+    num_steps: int = 12,
+    num_samples: int = 30,
     topk_ratio: float = 0.2,
-    alpha: float = 0.8,
+    alpha: float = 0.2,
     iters: int = 5,
 ):
     topk = int(jnp.ceil(topk_ratio * num_samples))
