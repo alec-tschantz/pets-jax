@@ -1,7 +1,14 @@
-from typing import Callable
+from typing import Callable, Optional, Tuple
 
 import equinox as eqx
-from jax import Array, numpy as jnp, random as jr, nn
+from jax import Array, numpy as jnp, random as jr, nn, vmap, lax
+
+from pets.dataset import Stats
+
+
+def _normalize(stats: Stats, inputs: Array) -> Array:
+    mean, std = stats
+    return (inputs - mean) / std
 
 
 class EnsembleLinear(eqx.Module):
@@ -25,6 +32,7 @@ class Ensemble(eqx.Module):
     act_fn: Callable[[Array], Array]
     min_logvar: float
     max_logvar: float
+    ensemble_dim: int
 
     def __init__(
         self,
@@ -36,16 +44,21 @@ class Ensemble(eqx.Module):
         *,
         key: jr.PRNGKey,
     ):
-        keys = jr.split(key, 3)
-        self.fc_1 = EnsembleLinear(input_dim, hidden_dim, ensemble_dim, key=keys[0])
-        self.fc_2 = EnsembleLinear(hidden_dim, hidden_dim, ensemble_dim, key=keys[1])
-        self.fc_3 = EnsembleLinear(hidden_dim, output_dim * 2, ensemble_dim, key=keys[2])
+        keys = jr.split(key, 4)
+        self.fc_1 = EnsembleLinear(input_dim, hidden_dim, ensemble_dim, key=keys[1])
+        self.fc_2 = EnsembleLinear(hidden_dim, hidden_dim, ensemble_dim, key=keys[2])
+        self.fc_3 = EnsembleLinear(hidden_dim, output_dim * 2, ensemble_dim, key=keys[3])
 
         self.act_fn = act_fn
-        self.max_logvar = 0.5
-        self.min_logvar = -10.0
+        self.ensemble_dim = ensemble_dim
 
-    def __call__(self, x: Array) -> Array:
+        self.max_logvar = -1.0
+        self.min_logvar = -5.0
+
+    def __call__(self, state: Array, action: Array, stats: Stats) -> Tuple[Array]:
+        x = jnp.concatenate([state, action], axis=-1)
+        x = _normalize(stats, x)
+
         x = self.fc_1(x)
         x = self.act_fn(x)
         x = self.fc_2(x)
@@ -57,3 +70,22 @@ class Ensemble(eqx.Module):
         delta_logvar = self.min_logvar + nn.softplus(delta_logvar - self.min_logvar)
 
         return delta_mean, delta_logvar
+
+    @eqx.filter_jit
+    def rollout(self, state, actions, stats, key):
+        _tile = lambda x: jnp.tile(x[:, None, ...], (1, self.ensemble_dim, 1))
+        state, actions = _tile(state), vmap(_tile)(actions)
+
+        def scan_fn(carry, action):
+            state, key = carry
+            key, subkey = jr.split(key)
+
+            delta_mean, delta_logvar = vmap(self, in_axes=(0, 0, None))(state, action, stats)
+            delta_std = jnp.sqrt(jnp.exp(delta_logvar))
+
+            delta = delta_mean + delta_std * jr.normal(key, delta_mean.shape)
+            next_state = state + delta
+            return (next_state, key), next_state
+
+        (final_state, _), states = lax.scan(scan_fn, (state, key), actions)
+        return states

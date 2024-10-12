@@ -7,6 +7,9 @@ from numpy.random import permutation
 
 from jax import Array, numpy as jnp
 
+Stats = Tuple[Array, Array]
+Batch = Tuple[Array, Array, Array, Array]
+
 
 class Dataset:
     def __init__(self, state_dim: int, action_dim: int, ensemble_dim: int, buffer_size: int = 10**6):
@@ -31,6 +34,15 @@ class Dataset:
             batch_indices = indices[:, idx : idx + batch_dim].T
             yield self[batch_indices]
 
+    def stats(self) -> Stats:
+        states, actions = self.states[: len(self)], self.actions[: len(self)]
+        inputs = jnp.concatenate([states, actions], axis=-1)
+
+        mean = jnp.mean(inputs, axis=0, keepdims=True)
+        std = jnp.std(inputs, axis=0, keepdims=True)
+        std = jnp.where(std < 1e-12, 1.0, std)
+        return mean, std
+
     def __setitem__(self, idx, value):
         state, action, reward, next_state = value
         self.states[idx] = state
@@ -48,24 +60,6 @@ class Dataset:
 
     def __len__(self):
         return min(self._steps, self.buffer_size)
-
-
-class Normalizer:
-    def __init__(self, dim: int):
-        self.mean = jnp.zeros((1, dim))
-        self.std = jnp.zeros((1, dim))
-        self.eps = 1e-12
-
-    def update(self, data: Array):
-        self.mean = jnp.mean(data, axis=0, keepdims=True)
-        self.std = jnp.std(data, axis=0, keepdims=True)
-        self.std = jnp.where(self.std < self.eps, 1.0, self.std)
-
-    def normalize(self, val: Array) -> Array:
-        return (val - self.mean) / self.std
-
-    def denormalize(self, val: Array) -> Array:
-        return self.std * val + self.mean
 
     def save(self, filename: str):
         with open(filename, "wb") as f:
