@@ -1,7 +1,6 @@
 # Mac OS
 .DS_Store
 data/*
-!data/.gitkeep
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
